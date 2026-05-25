@@ -1,11 +1,21 @@
 import threading
+import time
 import keyboard
 from pynput import mouse
 import pystray
 from PIL import Image, ImageDraw
+import ctypes
 
 
-left_pressed = False
+EDGE_SIZE = 5          # размер зоны у края экрана
+SCROLL_COOLDOWN = 0.15 # задержка между переключениями
+
+
+user32 = ctypes.windll.user32
+SCREEN_WIDTH = user32.GetSystemMetrics(0)
+
+
+last_trigger_time = 0
 
 
 def switch_desktop(direction: str):
@@ -24,26 +34,29 @@ def switch_desktop(direction: str):
         keyboard.release("ctrl+windows+right")
 
 
-def on_click(x, y, button, pressed):
-    global left_pressed
+def is_left_edge(x: int) -> bool:
+    return x <= EDGE_SIZE
 
-    if button == mouse.Button.left:
-        left_pressed = pressed
+
+def is_right_edge(x: int) -> bool:
+    return x >= SCREEN_WIDTH - EDGE_SIZE
 
 
 def on_scroll(x, y, dx, dy):
-    global left_pressed
+    global last_trigger_time
 
-    if not left_pressed:
+    current_time = time.time()
+
+    if current_time - last_trigger_time < SCROLL_COOLDOWN:
         return
 
-    # mouse wheel up
-    if dy > 0:
+    if is_left_edge(x):
         switch_desktop("left")
+        last_trigger_time = current_time
 
-    # mouse wheel down
-    elif dy < 0:
+    elif is_right_edge(x):
         switch_desktop("right")
+        last_trigger_time = current_time
 
 
 def create_image():
@@ -61,7 +74,6 @@ def quit_app(icon, item):
 
 def start_mouse_listener():
     listener = mouse.Listener(
-        on_click=on_click,
         on_scroll=on_scroll
     )
 
@@ -77,9 +89,9 @@ def main():
     mouse_thread.start()
 
     icon = pystray.Icon(
-        "DesktopSwitcher",
+        "WorkPlaceChanger",
         create_image(),
-        "Desktop Switcher",
+        "WorkPlaceChanger",
         menu=pystray.Menu(
             pystray.MenuItem("Exit", quit_app)
         )
